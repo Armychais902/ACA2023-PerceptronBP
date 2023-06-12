@@ -11,13 +11,15 @@ build/X86/gem5.opt configs/example/l3se.py --cpu-type X86O3CPU --num-cpus 1 --ca
 ```
 
 ## Path-based Perceptron
-To run perceptron branch predictor, do:
-- Place the 4 files (except README.md) in `main` branch to `gem5/src/cpu/pred`.
-- Build:
-```
-python3 `which scons` build/X86/gem5.opt -j 10
-```
-- Run:
-```
-build/X86/gem5.opt my-spec2006.py --image [/path/to/spec2006]/spec-2006/disk-image/spec-2006/spec-2006-image/spec-2006 --partition 1 --benchmark 400.perlbench --size test
-```
+- To run perceptron branch predictor, do:
+  - Place the 4 files (except README.md) in `main` branch to `gem5/src/cpu/pred`.
+  - Build:
+  ```
+  python3 `which scons` build/X86/gem5.opt -j 10
+  ```
+  - Run:
+  ```
+  build/X86/gem5.opt my-spec2006.py --image [/path/to/spec2006]/spec-2006/disk-image/spec-2006/spec-2006-image/spec-2006 --partition 1 --benchmark 400.perlbench --size test
+  ```
+- Differences between `path_perceptron.cc` and `path_perceptron_weight16b.cc`: the former use 8 bits weight and the latter use 16 bits.
+- Theta used in path-based perceptron: `theta = 2.14 * (globalHistoryLength + 1) + 20.58`.
