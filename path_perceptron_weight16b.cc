@@ -92,7 +92,7 @@ void PathPerceptron::btbUpdate(ThreadID tid, Addr branch_addr, void * &bp_histor
 {
     // Place holder for a function that is called to update predictor history when
     // a BTB entry is invalid or not found.
-    globalHistory[tid] &= (globalHistoryMask & ~1U);
+    globalHistory[tid] &= (globalHistoryMask & ~1ULL);
 }
 
 
@@ -104,7 +104,7 @@ void PathPerceptron::updateBranchPath(ThreadID tid, Addr branch_addr)
 }
 
 
-int PathPerceptron::updateWeight(int16_t weight, bool taken)
+int16_t PathPerceptron::updateWeight(int16_t weight, bool taken)
 {
     // weight hasn't been +- 1
     if (taken && weight < maxWeight)
@@ -113,19 +113,6 @@ int PathPerceptron::updateWeight(int16_t weight, bool taken)
         return weight - 1;
     return weight;
 }
-
-
-// void PathPerceptron::updateSpecGlobalHistTaken(ThreadID tid)
-// {
-//     specGlobalHistory[tid] = (specGlobalHistory[tid] << 1) | 1;
-//     specGlobalHistory[tid] = specGlobalHistory[tid] & globalHistoryMask;
-// }
-
-// void PathPerceptron::updateSpecGlobalHistNotTaken(ThreadID tid)
-// {
-//     specGlobalHistory[tid] = (specGlobalHistory[tid] << 1);
-//     specGlobalHistory[tid] = specGlobalHistory[tid] & globalHistoryMask;
-// }
 
 
 bool
@@ -176,7 +163,7 @@ PathPerceptron::update(ThreadID tid, Addr branch_addr, bool taken, void *bp_hist
     assert(bp_history);
     unsigned perceptron_idx = getLocalIndex(branch_addr);
     int y_out = specRunningSum[globalHistoryLength] + weights[perceptron_idx][0];
-    unsigned spec_history = specGlobalHistory[tid]; // global history before update to find correlation
+    unsigned long long spec_history = specGlobalHistory[tid]; // global history before update to find correlation
 
     // Update non-speculative global history
     globalHistory[tid] = ((globalHistory[tid] << 1) | taken);
@@ -205,10 +192,10 @@ PathPerceptron::update(ThreadID tid, Addr branch_addr, bool taken, void *bp_hist
         
         for (int j = 1; j <= globalHistoryLength; j++)
         {
-		// Use mod in case not enough branch history
-		unsigned k = (getLocalIndex(branchPath[tid][j % branchPath.size()]));    // branchPath[1 ... h]
-                bool correlation = (((spec_history >> j) & 1ULL) == taken);
-                weights[k][j] = updateWeight(weights[k][j], correlation);
+            // Use mod in case not enough branch history
+            unsigned k = (getLocalIndex(branchPath[tid][j % branchPath.size()]));    // branchPath[1 ... h]
+            bool correlation = (((spec_history >> j) & 1ULL) == taken);
+            weights[k][j] = updateWeight(weights[k][j], correlation);
         }
     }
 

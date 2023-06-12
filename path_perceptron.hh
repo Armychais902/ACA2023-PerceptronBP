@@ -105,7 +105,7 @@ class PathPerceptron : public BPredUnit
     inline unsigned long long getLocalIndex(Addr &PC);
 
     void updateBranchPath(ThreadID tid, Addr branch_addr);
-    int16_t updateWeight(int16_t weight, bool taken);
+    int8_t updateWeight(int8_t weight, bool taken);
 
       /**
      * The branch history information that is created upon predicting
@@ -128,14 +128,14 @@ class PathPerceptron : public BPredUnit
     std::vector<unsigned long long> globalHistory;
     std::vector<unsigned long long> specGlobalHistory;
 
-    // Number of bits of individual weight, set as 16
+    // Number of bits of individual weight, set as 8
     const unsigned localWeightBits;
     const unsigned numLocalWeights;
 
     const unsigned numPerceptrons;
 
     /** Array of counters that make up the local predictor. */
-    std::vector<std::vector<int16_t>> weights;
+    std::vector<std::vector<int8_t>> weights;
 
     /** Mask to get index bits. */
     const unsigned long long indexMask;
@@ -143,8 +143,8 @@ class PathPerceptron : public BPredUnit
     unsigned long long globalHistoryMask;
     unsigned theta;
 
-    int16_t maxWeight;
-    int16_t minWeight;
+    int8_t maxWeight;
+    int8_t minWeight;
 
     std::vector<int> runningSum;    // index 0 the newest
     std::vector<int> specRunningSum;
