@@ -47,10 +47,10 @@ PathPerceptron::PathPerceptron(const PathPerceptronParams &params)
       localPredictorSize(params.localPredictorSize),
       globalHistory(params.numThreads, 0),
       specGlobalHistory(params.numThreads, 0),
-      localWeightBits(8),
+      localWeightBits(16),
       numLocalWeights(globalHistoryLength + 1),
       numPerceptrons(localPredictorSize / localWeightBits / numLocalWeights),
-      weights(numPerceptrons, std::vector<int8_t>(numLocalWeights, 0)),
+      weights(numPerceptrons, std::vector<int16_t>(numLocalWeights, 0)),
       indexMask(numPerceptrons - 1)
 {
     if (!isPowerOf2(localPredictorSize)) {
@@ -65,8 +65,8 @@ PathPerceptron::PathPerceptron(const PathPerceptronParams &params)
     theta = (int)floor(2.14 * (globalHistoryLength + 1) + 20.58);
 
     // For saturated weight update
-    maxWeight = INT8_MAX;
-    minWeight = INT8_MIN;
+    maxWeight = INT16_MAX;
+    minWeight = INT16_MIN;
 
     runningSum.assign(globalHistoryLength + 1, 0);
     specRunningSum.assign(globalHistoryLength + 1, 0);
@@ -104,7 +104,7 @@ void PathPerceptron::updateBranchPath(ThreadID tid, Addr branch_addr)
 }
 
 
-int PathPerceptron::updateWeight(int8_t weight, bool taken)
+int PathPerceptron::updateWeight(int16_t weight, bool taken)
 {
     // weight hasn't been +- 1
     if (taken && weight < maxWeight)
