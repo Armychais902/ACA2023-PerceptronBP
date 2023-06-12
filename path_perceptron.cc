@@ -47,10 +47,10 @@ PathPerceptron::PathPerceptron(const PathPerceptronParams &params)
       localPredictorSize(params.localPredictorSize),
       globalHistory(params.numThreads, 0),
       specGlobalHistory(params.numThreads, 0),
-      localWeightBits(16),
+      localWeightBits(8),
       numLocalWeights(globalHistoryLength + 1),
       numPerceptrons(localPredictorSize / localWeightBits / numLocalWeights),
-      weights(numPerceptrons, std::vector<int16_t>(numLocalWeights, 0)),
+      weights(numPerceptrons, std::vector<int8_t>(numLocalWeights, 0)),
       indexMask(numPerceptrons - 1)
 {
     if (!isPowerOf2(localPredictorSize)) {
@@ -61,12 +61,12 @@ PathPerceptron::PathPerceptron(const PathPerceptronParams &params)
         fatal("Invalid number of perceptrons! Check globalHistoryLength must be 2^n - 1.\n");
     }
 
-    globalHistoryMask = (1ULL << globalHistoryLength) - 1;
+    globalHistoryMask = (1ULL << globalHistoryLength) - 1ULL;
     theta = (int)floor(2.14 * (globalHistoryLength + 1) + 20.58);
 
     // For saturated weight update
-    maxWeight = INT16_MAX;
-    minWeight = INT16_MIN;
+    maxWeight = INT8_MAX;
+    minWeight = INT8_MIN;
 
     runningSum.assign(globalHistoryLength + 1, 0);
     specRunningSum.assign(globalHistoryLength + 1, 0);
@@ -104,7 +104,7 @@ void PathPerceptron::updateBranchPath(ThreadID tid, Addr branch_addr)
 }
 
 
-int PathPerceptron::updateWeight(int16_t weight, bool taken)
+int PathPerceptron::updateWeight(int8_t weight, bool taken)
 {
     // weight hasn't been +- 1
     if (taken && weight < maxWeight)
@@ -132,7 +132,7 @@ bool
 PathPerceptron::lookup(ThreadID tid, Addr branch_addr, void * &bp_history)
 {
     bool taken;
-    unsigned perceptron_idx = getLocalIndex(tid, branch_addr);
+    unsigned perceptron_idx = getLocalIndex(branch_addr);
 
     DPRINTF(Fetch, "Looking up index %#x\n",
             perceptron_idx);
@@ -174,7 +174,7 @@ PathPerceptron::update(ThreadID tid, Addr branch_addr, bool taken, void *bp_hist
                 bool squashed, const StaticInstPtr & inst, Addr corrTarget)
 {
     assert(bp_history);
-    unsigned perceptron_idx = getLocalIndex(tid, branch_addr);
+    unsigned perceptron_idx = getLocalIndex(branch_addr);
     int y_out = specRunningSum[globalHistoryLength] + weights[perceptron_idx][0];
     unsigned spec_history = specGlobalHistory[tid]; // global history before update to find correlation
 
@@ -206,7 +206,7 @@ PathPerceptron::update(ThreadID tid, Addr branch_addr, bool taken, void *bp_hist
         for (int j = 1; j <= globalHistoryLength; j++)
         {
 		// Use mod in case not enough branch history
-		unsigned k = (getLocalIndex(tid, branchPath[tid][j % branchPath.size()]));    // branchPath[1 ... h]
+		unsigned k = (getLocalIndex(branchPath[tid][j % branchPath.size()]));    // branchPath[1 ... h]
                 bool correlation = (((spec_history >> j) & 1ULL) == taken);
                 weights[k][j] = updateWeight(weights[k][j], correlation);
         }
@@ -226,7 +226,7 @@ void PathPerceptron::squash(ThreadID tid, void *bp_history)
 // TODO: Can change to consider XOR?
 inline
 unsigned long long
-PathPerceptron::getLocalIndex(ThreadID tid, Addr &branch_addr)
+PathPerceptron::getLocalIndex(Addr &branch_addr)
 {
 	// unsigned long long global_segment = (specGlobalHistory[tid] & indexMask);
 	// unsigned long long addr_segment = ((branch_addr >> instShiftAmt) & indexMask);
