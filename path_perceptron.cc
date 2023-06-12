@@ -61,8 +61,8 @@ PathPerceptron::PathPerceptron(const PathPerceptronParams &params)
         fatal("Invalid number of perceptrons! Check globalHistoryLength must be 2^n - 1.\n");
     }
 
-    globalHistoryMask = (1U << globalHistoryLength) - 1;
-    theta = (int)floor(1.93 * globalHistoryLength + 14);
+    globalHistoryMask = (1ULL << globalHistoryLength) - 1;
+    theta = (int)floor(2.14 * (globalHistoryLength + 1) + 20.58);
 
     // For saturated weight update
     maxWeight = INT16_MAX;
@@ -132,7 +132,7 @@ bool
 PathPerceptron::lookup(ThreadID tid, Addr branch_addr, void * &bp_history)
 {
     bool taken;
-    unsigned perceptron_idx = getLocalIndex(branch_addr);
+    unsigned perceptron_idx = getLocalIndex(tid, branch_addr);
 
     DPRINTF(Fetch, "Looking up index %#x\n",
             perceptron_idx);
@@ -143,6 +143,12 @@ PathPerceptron::lookup(ThreadID tid, Addr branch_addr, void * &bp_history)
     DPRINTF(Fetch, "prediction is %i.\n", y_out);
 
     updateBranchPath(tid, branch_addr);
+    
+    // Create bp_history
+    BPHistory *history = new BPHistory;
+    history->globalHistory   = specGlobalHistory[tid];
+    history->globalPredTaken = taken;
+    bp_history = (void *)history;
 
     int k_j;
     std::vector<int> specRunningSum_prime(globalHistoryLength + 1, 0);
@@ -157,8 +163,8 @@ PathPerceptron::lookup(ThreadID tid, Addr branch_addr, void * &bp_history)
     specRunningSum = specRunningSum_prime;
     specRunningSum[0] = 0;
 
-    specGlobalHistory[tid] = (specGlobalHistory[tid] << 1) | taken;
-    specGlobalHistory[tid] = specGlobalHistory[tid] & globalHistoryMask;
+    specGlobalHistory[tid] = ((specGlobalHistory[tid] << 1) | taken);
+    specGlobalHistory[tid] = (specGlobalHistory[tid] & globalHistoryMask);
 
     return taken;
 }
@@ -167,12 +173,14 @@ void
 PathPerceptron::update(ThreadID tid, Addr branch_addr, bool taken, void *bp_history,
                 bool squashed, const StaticInstPtr & inst, Addr corrTarget)
 {
-    assert(!bp_history);
-    unsigned perceptron_idx = getLocalIndex(branch_addr);
+    assert(bp_history);
+    unsigned perceptron_idx = getLocalIndex(tid, branch_addr);
+    int y_out = specRunningSum[globalHistoryLength] + weights[perceptron_idx][0];
+    unsigned spec_history = specGlobalHistory[tid]; // global history before update to find correlation
 
     // Update non-speculative global history
-    globalHistory[tid] = (globalHistory[tid] << 1) | taken;
-    globalHistory[tid] = globalHistory[tid] & globalHistoryMask;
+    globalHistory[tid] = ((globalHistory[tid] << 1) | taken);
+    globalHistory[tid] = (globalHistory[tid] & globalHistoryMask);
 
     // Update non-speculative running sum
     std::vector<int> runningSum_prime(globalHistoryLength + 1, 0);
@@ -187,8 +195,6 @@ PathPerceptron::update(ThreadID tid, Addr branch_addr, bool taken, void *bp_hist
     runningSum = runningSum_prime;
     runningSum[0] = 0;
 
-    unsigned spec_history = specGlobalHistory[tid]; // global history before update to find correlation
-    int y_out = specRunningSum[globalHistoryLength] + weights[perceptron_idx][0];
     if (squashed || abs(y_out) <= theta) {
         if (squashed)
         {
@@ -199,12 +205,10 @@ PathPerceptron::update(ThreadID tid, Addr branch_addr, bool taken, void *bp_hist
         
         for (int j = 1; j <= globalHistoryLength; j++)
         {
-            if (j < branchPath[tid].size())
-            {
-                unsigned k = getLocalIndex(branchPath[tid][j]);    // branchPath[1 ... h]
-                bool correlation = (((spec_history >> j) & 1) == taken);
+		// Use mod in case not enough branch history
+		unsigned k = (getLocalIndex(tid, branchPath[tid][j % branchPath.size()]));    // branchPath[1 ... h]
+                bool correlation = (((spec_history >> j) & 1ULL) == taken);
                 weights[k][j] = updateWeight(weights[k][j], correlation);
-            }
         }
     }
 
@@ -213,24 +217,36 @@ PathPerceptron::update(ThreadID tid, Addr branch_addr, bool taken, void *bp_hist
 
 void PathPerceptron::squash(ThreadID tid, void *bp_history)
 {
-    specGlobalHistory[tid] = globalHistory[tid];
+    BPHistory *history = static_cast<BPHistory *>(bp_history);
+	specGlobalHistory[tid] = globalHistory[tid];
     specRunningSum = runningSum;
+    delete history;
 }
 
 // TODO: Can change to consider XOR?
 inline
-unsigned
-PathPerceptron::getLocalIndex(Addr &branch_addr)
+unsigned long long
+PathPerceptron::getLocalIndex(ThreadID tid, Addr &branch_addr)
 {
-    return (branch_addr >> instShiftAmt) & indexMask;
+	// unsigned long long global_segment = (specGlobalHistory[tid] & indexMask);
+	// unsigned long long addr_segment = ((branch_addr >> instShiftAmt) & indexMask);
+	// return (global_segment ^ addr_segment);
+    return ((branch_addr >> instShiftAmt) & indexMask);
 }
 
 void
 PathPerceptron::uncondBranch(ThreadID tid, Addr pc, void *&bp_history)
 {
-    updateBranchPath(tid, pc);
-    specGlobalHistory[tid] = (specGlobalHistory[tid] << 1) | 1;
-    specGlobalHistory[tid] = specGlobalHistory[tid] & globalHistoryMask;
+	// Create BPHistory and pass it back to be recorded.
+  	BPHistory *history = new BPHistory;
+  	history->globalHistory = specGlobalHistory[tid];
+  	history->globalPredTaken = true;
+  	history->globalUsed = true;
+  	bp_history = static_cast<void *>(history);
+    
+	updateBranchPath(tid, pc);
+    specGlobalHistory[tid] = ((specGlobalHistory[tid] << 1) | 1);
+    specGlobalHistory[tid] = (specGlobalHistory[tid] & globalHistoryMask);
 }
 
 } // namespace branch_prediction

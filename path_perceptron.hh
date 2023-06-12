@@ -102,10 +102,22 @@ class PathPerceptron : public BPredUnit
   private:
 
     /** Calculates the local index based on the PC. */
-    inline unsigned getLocalIndex(Addr &PC);
+    inline unsigned long long getLocalIndex(ThreadID tid, Addr &PC);
 
     void updateBranchPath(ThreadID tid, Addr branch_addr);
     int updateWeight(int16_t weight, bool taken);
+
+    /**
+   * The branch history information that is created upon predicting
+   * a branch.  It will be passed back upon updating and squashing,
+   * when the BP can use this information to update/restore its
+   * state properly.
+   */
+  struct BPHistory {
+	unsigned globalHistory;
+	bool globalPredTaken;
+	bool globalUsed;
+  };
 
     // void updateSpecGlobalHistTaken(ThreadID tid);
     // void updateSpecGlobalHistNotTaken(ThreadID tid);
@@ -113,8 +125,8 @@ class PathPerceptron : public BPredUnit
     const unsigned globalHistoryLength;
     const unsigned localPredictorSize;
 
-    std::vector<unsigned> globalHistory;
-    std::vector<unsigned> specGlobalHistory;
+    std::vector<unsigned long long> globalHistory;
+    std::vector<unsigned long long> specGlobalHistory;
 
     // Number of bits of individual weight, set as 16
     const unsigned localWeightBits;
@@ -126,9 +138,9 @@ class PathPerceptron : public BPredUnit
     std::vector<std::vector<int16_t>> weights;
 
     /** Mask to get index bits. */
-    const unsigned indexMask;
+    const unsigned long long indexMask;
 
-    unsigned globalHistoryMask;
+    unsigned long long globalHistoryMask;
     unsigned theta;
 
     int16_t maxWeight;

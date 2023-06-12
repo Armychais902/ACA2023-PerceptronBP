@@ -89,8 +89,8 @@ class PathPerceptron(BranchPredictor):
     cxx_class = 'gem5::branch_prediction::PathPerceptron'
     cxx_header = "cpu/pred/path_perceptron.hh"
     
-    globalHistoryLength = Param.Unsigned (3, "Global history length")
-    localPredictorSize = Param.Unsigned(2048, "Size of local predictor")
+    globalHistoryLength = Param.Unsigned (31, "Global history length")
+    localPredictorSize = Param.Unsigned(65536, "Size of local predictor")
 
 
 class LocalBP(BranchPredictor):
